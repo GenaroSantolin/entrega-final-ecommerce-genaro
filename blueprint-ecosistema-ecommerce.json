@@ -1,0 +1,174 @@
+{
+  "name": "Ecosistema E-commerce - Atencion al Cliente con HITL",
+  "flow": [
+    {
+      "id": 10,
+      "module": "google-email:triggerWatchNewEmails",
+      "label": "TRIGGER 1: Gmail Watch Emails (From now on) - soporte@tienda.com",
+      "parameters": {
+        "folder": "UNREAD",
+        "format": "full",
+        "limit": 1
+      }
+    },
+    {
+      "id": 32,
+      "module": "ai-tools:Categorize",
+      "label": "IA: Make AI Toolkit - Categorize text (Sentimiento + Tipo consulta)",
+      "parameters": {
+        "model": "medium"
+      },
+      "mapper": {
+        "input": "{{10.fullTextBody}}",
+        "categories": [
+          { "name": "Negativo_Reclamo", "description": "Tono molesto, producto danado, pedido incorrecto o demorado" },
+          { "name": "Neutro_Consulta", "description": "Pregunta sobre estado de pedido, envio, cambios o devoluciones" },
+          { "name": "Positivo", "description": "Agradecimiento, elogio, buena experiencia de compra" }
+        ],
+        "maxOutputTokens": 60
+      },
+      "onerror": [
+        {
+          "id": 31,
+          "module": "builtin:Break",
+          "label": "Error Handler: 3 reintentos + registro de error",
+          "mapper": { "retry": true, "count": "3", "interval": "15" }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "module": "airtable:createRecord",
+      "label": "Airtable: Add Record en tabla Tickets",
+      "mapper": {
+        "table": "Tickets",
+        "fields": {
+          "Cliente": "{{10.fromName}}",
+          "Email": "{{10.fromEmail}}",
+          "Mensaje": "{{10.fullTextBody}}",
+          "Sentimiento_Tipo": "{{32.categories}}",
+          "Estado": "Procesado por IA",
+          "Aprobado": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "builtin:BasicRouter",
+      "label": "Router - divide en 3 rutas por sentimiento/tipo",
+      "routes": [
+        {
+          "filter": {
+            "name": "Negativo Reclamo",
+            "conditions": [{ "a": "{{32.categories}}", "o": "text:contain", "b": "Negativo_Reclamo" }]
+          },
+          "flow": [
+            {
+              "id": 5,
+              "module": "slack:CreateMessage",
+              "label": "Notificar equipo interno - canal reclamos-urgentes",
+              "mapper": { "channel": "reclamos-urgentes", "text": "Reclamo de {{10.fromName}}. Revisar y aprobar respuesta en Airtable: {{link_registro}}" }
+            }
+          ]
+        },
+        {
+          "filter": {
+            "name": "Neutro Consulta",
+            "conditions": [{ "a": "{{32.categories}}", "o": "text:contain", "b": "Neutro_Consulta" }]
+          },
+          "flow": [
+            {
+              "id": 16,
+              "module": "slack:CreateMessage",
+              "label": "Notificar equipo interno - canal consultas-generales",
+              "mapper": { "channel": "consultas-generales", "text": "Consulta de {{10.fromName}}. Revisar y aprobar respuesta en Airtable: {{link_registro}}" }
+            }
+          ]
+        },
+        {
+          "filter": {
+            "name": "Positivo",
+            "conditions": [{ "a": "{{32.categories}}", "o": "text:contain", "b": "Positivo" }]
+          },
+          "flow": [
+            {
+              "id": 20,
+              "module": "slack:CreateMessage",
+              "label": "Notificar equipo interno - canal clientes-satisfechos",
+              "mapper": { "channel": "clientes-satisfechos", "text": "Feedback positivo de {{10.fromName}}. Aprobar cupon de fidelizacion en Airtable: {{link_registro}}" }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "hitl_flow_comment": "El siguiente escenario corre por separado, disparado por el cambio de campo Aprobado en Airtable. Se documenta a continuacion como segunda parte del ecosistema:",
+  "hitl_flow": [
+    {
+      "id": 50,
+      "module": "airtable:triggerWatchRecords",
+      "label": "TRIGGER 2 (HITL): Airtable Watch Records - Aprobado = TRUE",
+      "parameters": {
+        "table": "Tickets",
+        "watchField": "Aprobado",
+        "filter": "Aprobado = true"
+      }
+    },
+    {
+      "id": 51,
+      "module": "builtin:Filter",
+      "label": "Filtro de seguridad: Aprobado = TRUE Y Estado = Procesado por IA",
+      "filter": {
+        "conditions": [
+          { "a": "{{50.Aprobado}}", "o": "boolean:equal", "b": true },
+          { "a": "{{50.Estado}}", "o": "text:equal", "b": "Procesado por IA" }
+        ]
+      }
+    },
+    {
+      "id": 52,
+      "module": "google-email:sendEmail",
+      "label": "Gmail: Send Reply (Thread-ID mapeado)",
+      "mapper": {
+        "threadId": "{{10.threadId}}",
+        "to": "{{50.Email}}",
+        "subject": "Re: {{10.subject}}",
+        "body": "Hola {{50.Cliente}}, gracias por escribirnos. {{respuesta_redactada_por_IA_y_aprobada}}"
+      }
+    },
+    {
+      "id": 53,
+      "module": "custom:generateCoupon",
+      "label": "Sistema de Cupones: genera codigo (solo si categoria = Positivo)",
+      "filter": {
+        "conditions": [{ "a": "{{50.Sentimiento_Tipo}}", "o": "text:contain", "b": "Positivo" }]
+      },
+      "mapper": {
+        "cliente": "{{50.Cliente}}",
+        "descuento": "10%",
+        "vigencia_dias": 30
+      }
+    },
+    {
+      "id": 54,
+      "module": "airtable:updateRecord",
+      "label": "Airtable: Update Record - Estado = Publicado",
+      "mapper": {
+        "table": "Tickets",
+        "recordId": "{{50.id}}",
+        "fields": { "Estado": "Publicado" }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "sequential": false
+    },
+    "zone": "us2.make.com"
+  }
+}
