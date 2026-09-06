@@ -19,7 +19,7 @@
 
 - **Dashboard de Control (Airtable Shared View):** https://airtable.com/apprtdTzVLCtORMNr/shrsYhmZKGKtR9MLB
 - **Base de datos en modo lectura:** https://airtable.com/apprtdTzVLCtORMNr/shrsYhmZKGKtR9MLB
-- **Video demo:** `[PEGAR AQUÍ EL LINK AL VIDEO DE 3 MINUTOS]`
+- **Video demo:** https://drive.google.com/file/d/1m8iN5c986nVWOzAOsO2dFBJXRdZIQz9u/view?usp=sharing
 
 ## 🧩 Resumen del sistema
 
