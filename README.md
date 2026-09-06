@@ -1,7 +1,7 @@
 # Entrega Final — Ecosistema de Automatización IA Autónomo (E-commerce)
 
 **Curso:** AI Automation — Coderhouse
-**Alumna:** Genaro Santolin
+**Alumno:** Genaro Santolin
 **Caso de uso:** Agente de Atención al Cliente para e-commerce — análisis de sentimiento y tipo de consulta, con validación humana (HITL) antes de responder o emitir cualquier cupón.
 
 ---
